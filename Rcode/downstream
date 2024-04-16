@@ -1,0 +1,302 @@
+#training data
+options(digits=15)
+
+#remove limma colinearity
+#limma_rm_new<-limma_rm[rownames(limma_rm) %in% c(up_DE,down_DE),]
+limma_rm_cor<-cor(t(limma_rm))
+remove_highly_correlated <- function(cor_matrix, threshold) {
+  # Get the upper triangle of the correlation matrix
+  upper_triangle <- cor_matrix
+  upper_triangle[lower.tri(upper_triangle, diag = TRUE)] <- 0
+  
+  # Find columns (variables) to be removed
+  to_remove <- character(0)
+  for (col in colnames(upper_triangle)) {
+    if (any(abs(upper_triangle[, col]) > threshold)) {
+      to_remove <- c(to_remove, col)
+    }
+  }
+  
+  # Remove the identified columns
+  cor_matrix <- cor_matrix[!(rownames(cor_matrix) %in% to_remove), , drop = FALSE]
+  cor_matrix <- cor_matrix[, !(colnames(cor_matrix) %in% to_remove), drop = FALSE]
+  
+  return(cor_matrix)
+}
+
+#new_limma <- remove_highly_correlated(limma_rm_cor, 0.99)
+new_limma <- remove_highly_correlated(limma_rm_cor, 0.99)
+limma_rm_new<-limma_rm[rownames(limma_rm) %in% rownames(new_limma),]
+limma_rm_new<-limma_rm_new[rownames(limma_rm_new) %in% c(up_DE,down_DE),]
+
+pre_pan<-merge(allsample[,c("V1","V2")],t(limma_rm_new),by.x="V1",by.y="row.names")
+pre_pan<-change_name2(pre_pan)
+colnames(pre_pan)[1]<-"group"
+
+#for TCGA imbalanced sample
+#TCGA random tumor
+TCGA_tumor<-pre_pan[rownames(pre_pan) %in% TCGA_sample[!TCGA_sample$V1 %in% TCGA_match_sample$V1,]$V1,]
+set.seed(123)
+TCGA_indices<-sample(1:nrow(TCGA_tumor),0.4 * nrow(TCGA_tumor))
+TCGA_train_set<-TCGA_tumor[TCGA_indices,]
+TCGA_train_set_sample<-allsample[allsample$V1 %in% rownames(TCGA_train_set),]
+
+TCGA_train_set2<-TCGA_tumor[-TCGA_indices,]
+
+
+#TCGA random match
+TCGA_match_rad<-pre_pan[rownames(pre_pan) %in% TCGA_match_sample$V1,]
+
+#tissue
+tissue_set<-pre_pan[rownames(pre_pan) %in% allsample[allsample$batch %in% c("GSE175462","GSE110907"),]$V1,]
+tissue_set<-rbind(tissue_set,TCGA_train_set,TCGA_match_rad)
+#plasma
+plasma_set<-pre_pan[rownames(pre_pan) %in% allsample[allsample$type=="plasma",]$V1,]
+#exosome
+exosome_set<-pre_pan[rownames(pre_pan) %in% allsample[allsample$type=="exosome",]$V1,]
+
+set.seed(123)
+tissue_indices<-sample(1:nrow(tissue_set),0.7* nrow(tissue_set))
+tissue_train<-tissue_set[tissue_indices,]
+tissue_train_sample<-allsample[,c("V1","V2")][allsample[,c("V1","V2")]$V1 %in% rownames(tissue_train),]
+tissue_test<-tissue_set[-tissue_indices,]
+tissue_test_sample<-allsample[,c("V1","V2")][allsample[,c("V1","V2")]$V1 %in% rownames(tissue_test),]
+
+set.seed(123)
+exosome_indices<-sample(1:nrow(exosome_set),0.7* nrow(exosome_set))
+exosome_train<-exosome_set[exosome_indices,]
+exosome_train_sample<-allsample[,c("V1","V2")][allsample[,c("V1","V2")]$V1 %in% rownames(exosome_train),]
+exosome_test<-exosome_set[-exosome_indices,]
+exosome_test_sample<-allsample[,c("V1","V2")][allsample[,c("V1","V2")]$V1 %in% rownames(exosome_test),]
+
+
+set.seed(123)
+plasma_indices<-sample(1:nrow(plasma_set),0.7* nrow(plasma_set))
+plasma_train<-plasma_set[plasma_indices,]
+plasma_train_sample<-allsample[,c("V1","V2")][allsample[,c("V1","V2")]$V1 %in% rownames(plasma_train),]
+plasma_test<-plasma_set[-plasma_indices,]
+plasma_test_sample<-allsample[,c("V1","V2")][allsample[,c("V1","V2")]$V1 %in% rownames(plasma_test),]
+
+
+pan_train<-rbind(tissue_train,exosome_train,plasma_train)
+pan_train_sample<-rbind(tissue_train_sample,exosome_train_sample,plasma_train_sample)
+pan_test<-rbind(tissue_test,exosome_test,plasma_test)
+pan_test_sample<-rbind(tissue_test_sample,exosome_test_sample,plasma_test_sample)
+write.csv(pan_train,"pan_train.csv")
+
+pan_train_DE<-wilcox_test_piRNA2(pan_train_sample,t(pan_train[,-1]))
+
+
+train_list<-data.frame(piRNA_ID=c('piR-hsa-100956', 'piR-hsa-1288731', 'piR-hsa-131631', 'piR-hsa-138412', 'piR-hsa-141155', 
+                                  'piR-hsa-2499988', 'piR-hsa-2826866', 'piR-hsa-2826956', 'piR-hsa-2831324', 'piR-hsa-2833690', 
+                                  'piR-hsa-2838249', 'piR-hsa-2851625', 'piR-hsa-2851799'))
+
+
+#
+pan_train2<-data.frame(group=pan_train$group,pan_train[,colnames(pan_train) %in% train_list$piRNA_ID])
+write.csv(pan_train2,"pan_train2.csv")
+pan_test2<-data.frame(group=pan_test$group,pan_test[,colnames(pan_test) %in% train_list$piRNA_ID])
+write.csv(pan_test2,"pan_test2.csv")
+
+tissue_test2<-data.frame(group=tissue_test$group,tissue_test[,colnames(tissue_test) %in% train_list$piRNA_ID])
+write.csv(tissue_test2,"tissue_test2.csv")
+
+exosome_test2<-data.frame(group=exosome_test$group,exosome_test[,colnames(exosome_test) %in% train_list$piRNA_ID])
+write.csv(exosome_test2,"exosome_test2.csv")
+exosome_test2_CH<-exosome_test2[rownames(exosome_test2) %in% exosome_sample_CH$V1,]
+write.csv(exosome_test2_CH,"exosome_test2_CH.csv")
+exosome_test2_BC<-exosome_test2[rownames(exosome_test2) %in% exosome_sample_BC$V1,]
+write.csv(exosome_test2_BC,"exosome_test2_BC.csv")
+
+plasma_test2<-data.frame(group=plasma_test$group,plasma_test[,colnames(plasma_test) %in% train_list$piRNA_ID])
+write.csv(plasma_test2,"plasma_test2.csv")
+# 
+# GSE110907_rf<-process_data(limma_rm_new, allsample, train_list2, change_name2,"GSE110907")
+# colnames(GSE110907_rf)<-gsub("-","\\.",colnames(GSE110907_rf))
+# write.csv(GSE110907_rf,"GSE110907_rf.csv")
+
+TCGA_rf_2.1<-TCGA_train_set2.1[,colnames(TCGA_train_set2.1) %in% train_list$piRNA_ID]
+TCGA_rf_2.1<-merge(TCGA_train_set2.1_sample[,c("V1","V2")],TCGA_rf_2.1,by.x="V1",by.y="row.names")
+TCGA_rf_2.1<-change_name2(TCGA_rf_2.1)
+colnames(TCGA_rf_2.1)<-gsub("-","\\.",colnames(TCGA_rf_2.1))
+colnames(TCGA_rf_2.1)[1]<-"group"
+
+
+TCGA_rf_2.2<-TCGA_train_set2.2[,colnames(TCGA_train_set2.2) %in% train_list$piRNA_ID]
+TCGA_rf_2.2<-merge(TCGA_train_set2.2_sample[,c("V1","V2")],TCGA_rf_2.2,by.x="V1",by.y="row.names")
+TCGA_rf_2.2<-change_name2(TCGA_rf_2.2)
+colnames(TCGA_rf_2.2)<-gsub("-","\\.",colnames(TCGA_rf_2.2))
+colnames(TCGA_rf_2.2)[1]<-"group"
+
+
+GSE83527_rf<-process_data(limma_rm_new, allsample, train_list, change_name2,"GSE83527")
+colnames(GSE83527_rf)<-gsub("-","\\.",colnames(GSE83527_rf))
+write.csv(GSE83527_rf,"GSE83527_rf.csv")
+
+GSE62182_rf<-process_data(limma_rm_new, allsample, train_list, change_name2,"GSE62182")
+colnames(GSE62182_rf)<-gsub("-","\\.",colnames(GSE62182_rf))
+write.csv(GSE62182_rf,"GSE62182_rf.csv")
+
+tissue_other1<-rbind(GSE83527_rf,GSE62182_rf,TCGA_rf_2.1)
+write.csv(tissue_other1,"tissue_other1.csv")
+tissue_other2<-rbind(GSE83527_rf,GSE62182_rf,TCGA_rf_2.2)
+write.csv(tissue_other2,"tissue_other2.csv")
+
+#
+train_check<-t(pan_train[,-1])
+train_check<-train_check[rownames(train_check) %in% train_list$piRNA_ID,]
+train_check_cor<-cor(t(train_check))
+train_rm_cor <- remove_highly_correlated(train_check_cor, 0.8)
+train_list_tmp<-data.frame(piRNA_ID=colnames(train_rm_cor))
+train_list_tmp<-data.frame(piRNA_ID=train_list_tmp[-5,])
+train_check_cor2<-train_check[rownames(train_check) %in% train_list_tmp$piRNA_ID,]
+train_rm_cor2<-cor(t(train_check_cor2))
+
+
+ggcorrplot(train_rm_cor2,
+           hc.order = TRUE,method = "circle",lab = TRUE,
+           colors = c("#F19F1C", "white", "#42944D"))
+
+ggcorrplot(train_rm_cor2,
+           hc.order = TRUE,
+           lab = FALSE,colors = c("#6D9EC1", "white", "#E46726"))
+
+#train_list2<-data.frame(piRNA_ID=rownames(train_check_cor))
+train_list2<-data.frame(piRNA_ID=rownames(train_rm_cor2))
+
+#DE gene combination
+DE_piRNA_signature<-rbind(data.frame(piRNA=rownames(DEpiRNA_TCGA_match[rownames(DEpiRNA_TCGA_match) %in% train_list$piRNA_ID,]),DEpiRNA_TCGA_match[rownames(DEpiRNA_TCGA_match) %in% train_list$piRNA_ID,],batch="TCGA"),
+                          data.frame(piRNA=rownames(DEpiRNA_GSE175462[rownames(DEpiRNA_GSE175462) %in% train_list$piRNA_ID,]),DEpiRNA_GSE175462[rownames(DEpiRNA_GSE175462) %in% train_list$piRNA_ID,],batch="GSE175462"),
+                          data.frame(piRNA=rownames(DEpiRNA_GSE110907[rownames(DEpiRNA_GSE110907) %in% train_list$piRNA_ID,]),DEpiRNA_GSE110907[rownames(DEpiRNA_GSE110907) %in% train_list$piRNA_ID,],batch="GSE110907"),
+                          data.frame(piRNA=rownames(DEpiRNA_GSE83527[rownames(DEpiRNA_GSE83527) %in% train_list$piRNA_ID,]),DEpiRNA_GSE83527[rownames(DEpiRNA_GSE83527) %in% train_list$piRNA_ID,],batch="GSE83527"),
+                          data.frame(piRNA=rownames(DEpiRNA_GSE62182[rownames(DEpiRNA_GSE62182) %in% train_list$piRNA_ID,]),DEpiRNA_GSE62182[rownames(DEpiRNA_GSE62182) %in% train_list$piRNA_ID,],batch="GSE62182"),
+                          data.frame(piRNA=rownames(DEpiRNA_GSE148861_62[rownames(DEpiRNA_GSE148861_62) %in% train_list$piRNA_ID,]),DEpiRNA_GSE148861_62[rownames(DEpiRNA_GSE148861_62) %in% train_list$piRNA_ID,],batch="GSE148861/GSE148862"),
+                          data.frame(piRNA=rownames(DEpiRNA_GSE204951[rownames(DEpiRNA_GSE204951) %in% train_list$piRNA_ID,]),DEpiRNA_GSE204951[rownames(DEpiRNA_GSE204951) %in% train_list$piRNA_ID,],batch="GSE204951"),
+                          data.frame(piRNA=rownames(DEpiRNA_CHTN[rownames(DEpiRNA_CHTN) %in% train_list$piRNA_ID,]),DEpiRNA_CHTN[rownames(DEpiRNA_CHTN) %in% train_list$piRNA_ID,],batch="CHTN"))
+                          
+
+
+
+#
+pan_train_new<-data.frame(group=pan_train$group,pan_train[,colnames(pan_train) %in% train_list2$piRNA_ID])
+write.csv(pan_train_new,"pan_train_new.csv")
+pan_test_new<-data.frame(group=pan_test$group,pan_test[,colnames(pan_test) %in% train_list2$piRNA_ID])
+write.csv(pan_test_new,"pan_test_new.csv")
+
+tissue_test_new<-data.frame(group=tissue_test$group,tissue_test[,colnames(tissue_test) %in% train_list2$piRNA_ID])
+write.csv(tissue_test_new,"tissue_test_new.csv")
+test1220 <- read.csv("tissue_test_new.csv")
+sprintf("%f",)
+print(test1220[1,"piR.hsa.100956"], digits=15)
+
+all_tissue_sample<-rbind(GSE83527_sample[,c("V1","stage_2")],GSE62182_sample[,c("V1","stage_2")],
+                         GSE110907_sample[,c("V1","stage_2")],GSE175462_sample[,c("V1","stage_2")],TCGA_sample[,c("V1","stage_2")])
+tissue_test_sample<-merge(tissue_test_sample,all_tissue_sample,by="V1")
+
+exosome_test_new<-data.frame(group=exosome_test$group,exosome_test[,colnames(exosome_test) %in% train_list2$piRNA_ID])
+write.csv(exosome_test_new,"exosome_test_new.csv")
+exosome_test_new_CH<-exosome_test_new[rownames(exosome_test_new) %in% exosome_sample_CH$V1,]
+write.csv(exosome_test_new_CH,"exosome_test_new_CH.csv")
+exosome_test_new_BC<-exosome_test_new[rownames(exosome_test_new) %in% exosome_sample_BC$V1,]
+write.csv(exosome_test_new_BC,"exosome_test_new_BC.csv")
+
+plasma_test_new<-data.frame(group=plasma_test$group,plasma_test[,colnames(plasma_test) %in% train_list2$piRNA_ID])
+write.csv(plasma_test_new,"plasma_test_new.csv")
+# 
+# GSE110907_rf<-process_data(limma_rm_new, allsample, train_list2, change_name2,"GSE110907")
+# colnames(GSE110907_rf)<-gsub("-","\\.",colnames(GSE110907_rf))
+# write.csv(GSE110907_rf,"GSE110907_rf.csv")
+
+GSE83527_rf2<-process_data(limma_rm_new, allsample, train_list2, change_name2,"GSE83527")
+colnames(GSE83527_rf2)<-gsub("-","\\.",colnames(GSE83527_rf2))
+write.csv(GSE83527_rf2,"GSE83527_rf2.csv")
+
+GSE62182_rf2<-process_data(limma_rm_new, allsample, train_list2, change_name2,"GSE62182")
+colnames(GSE62182_rf2)<-gsub("-","\\.",colnames(GSE62182_rf2))
+write.csv(GSE62182_rf2,"GSE62182_rf2.csv")
+
+##stage
+tissue_test_new_stage<-merge(tissue_test_new,tissue_test_sample[,c("V1","stage_2")],by.x="row.names",by.y="V1")
+tissue_test_new_stage<-change_name2(tissue_test_new_stage)
+write.csv(tissue_test_new_stage,"tissue_test_new_stage.csv")
+
+###################other subgroups###############
+#for test set(contains TCGA,GSE110907,GSE175462)
+GSE175462_test_sample<-GSE175462_sample[GSE175462_sample$V1 %in% tissue_test_sample$V1,]
+GSE110907_test_sample<-GSE110907_sample[GSE110907_sample$V1 %in% tissue_test_sample$V1,]
+TCGA_test_sample<-TCGA_sample[TCGA_sample %in% tissue_test_sample$V1,]
+
+
+GSE175462_test_exp<-pan_test_new[rownames(pan_test_new) %in% GSE175462_test_sample$V1,]
+GSE175462_test_exp<-merge(GSE175462_test_sample[,c("V1","V3","Smoking")],GSE175462_test_exp,by.y="row.names",by.x="V1")
+GSE175462_test_exp<-change_name2(GSE175462_test_exp)
+
+GSE175462_subtype_data1<- gather(GSE175462_test_exp[,-c(1:2)], piRNA, Expression, -group)
+
+GSE175462_subtype_data2<- gather(GSE175462_test_exp[,-c(2:3)], piRNA, Expression, -V3)
+GSE175462_subtype_data3<- gather(GSE175462_test_exp[,-c(1,3)], piRNA, Expression, -Smoking)
+
+GSE175462_sex_boxplot<-cbind(GSE175462_subtype_data1,GSE175462_subtype_data2[,c("V3")])
+colnames(GSE175462_sex_boxplot)[4]<-"sex"
+
+ggplot(GSE175462_sex_boxplot, aes(x = interaction(sex, group), y = Expression, fill = sex)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, fill = "white") +
+  scale_fill_manual(values = c("#999999", "#E69F00", "#56B4E9", "#009E73")) +
+  theme_light() +
+  xlab("Condition and Group") +
+  ylab("Value") +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+
+###############################specific validation####################
+#tissue specific
+tissue_train_sig<-data.frame(group=tissue_train$group,tissue_train[,colnames(tissue_train) %in% train_list2$piRNA_ID])
+
+
+#plasma specific
+plasma_train_sig<-data.frame(group=plasma_train$group,plasma_train[,colnames(plasma_train) %in% train_list2$piRNA_ID])
+
+
+#exosone specific
+exosome_train_sig<-data.frame(group=exosome_train$group,exosome_train[,colnames(exosome_train) %in% train_list2$piRNA_ID])
+write.csv(exosome_train_sig,"exosome_train_sig.csv")
+
+
+#exosome specific
+#adding RUSH
+spe_exosome<-merge(CHTN_log_rm,RUSH_log_rm,by="row.names")
+spe_exosome<-change_name2(spe_exosome)
+spe_exosome_sample<-rbind(CHTN_sample[,c("V1","V2","batch")],RUSH_sample[,c("V1","V2","batch")])
+
+spe_exosome_sig<-limma_rm_exosome[rownames(limma_rm_exosome) %in% train_list2$piRNA_ID,]
+spe_exosome_sig<-t(spe_exosome_sig)
+
+spe_exosome_CHTN<-merge(CHTN_sample[,c("V1","V2","batch","Race_2")],spe_exosome_sig,by.x="V1",by.y="row.names")
+spe_exosome_CHTN_CH<-spe_exosome_CHTN[spe_exosome_CHTN$Race_2 %in% c("normal","tumor"),]
+spe_exosome_CHTN_BC<-spe_exosome_CHTN[spe_exosome_CHTN$Race_2 %in% c("benign","tumor"),]
+
+change_name3<-function(data,change_name2){
+  data<-data[,-c(3:4)]
+  data<-change_name2(data)
+  colnames(data)[1]<-"group"
+  return(data)
+}
+spe_exosome_CHTN<-change_name3(spe_exosome_CHTN,change_name2)
+spe_exosome_CHTN_CH<-change_name3(spe_exosome_CHTN_CH,change_name2)
+spe_exosome_CHTN_BC<-change_name3(spe_exosome_CHTN_BC,change_name2)
+
+spe_exosome_RUSH<-merge(RUSH_sample[,c("V1","V2","batch","Race_2")],spe_exosome_sig,by.x="V1",by.y="row.names")
+spe_exosome_RUSH_CH<-spe_exosome_RUSH[spe_exosome_RUSH$Race_2 %in% c("normal","cancer"),]
+spe_exosome_RUSH_BC<-spe_exosome_RUSH[spe_exosome_RUSH$Race_2 %in% c("benign","cancer"),]
+
+spe_exosome_RUSH<-change_name3(spe_exosome_RUSH,change_name2)
+spe_exosome_RUSH_CH<-change_name3(spe_exosome_RUSH_CH,change_name2)
+spe_exosome_RUSH_BC<-change_name3(spe_exosome_RUSH_BC,change_name2)
+
+
+

@@ -267,36 +267,3 @@ exosome_train_sig<-data.frame(group=exosome_train$group,exosome_train[,colnames(
 write.csv(exosome_train_sig,"exosome_train_sig.csv")
 
 
-#exosome specific
-#adding RUSH
-spe_exosome<-merge(CHTN_log_rm,RUSH_log_rm,by="row.names")
-spe_exosome<-change_name2(spe_exosome)
-spe_exosome_sample<-rbind(CHTN_sample[,c("V1","V2","batch")],RUSH_sample[,c("V1","V2","batch")])
-
-spe_exosome_sig<-limma_rm_exosome[rownames(limma_rm_exosome) %in% train_list2$piRNA_ID,]
-spe_exosome_sig<-t(spe_exosome_sig)
-
-spe_exosome_CHTN<-merge(CHTN_sample[,c("V1","V2","batch","Race_2")],spe_exosome_sig,by.x="V1",by.y="row.names")
-spe_exosome_CHTN_CH<-spe_exosome_CHTN[spe_exosome_CHTN$Race_2 %in% c("normal","tumor"),]
-spe_exosome_CHTN_BC<-spe_exosome_CHTN[spe_exosome_CHTN$Race_2 %in% c("benign","tumor"),]
-
-change_name3<-function(data,change_name2){
-  data<-data[,-c(3:4)]
-  data<-change_name2(data)
-  colnames(data)[1]<-"group"
-  return(data)
-}
-spe_exosome_CHTN<-change_name3(spe_exosome_CHTN,change_name2)
-spe_exosome_CHTN_CH<-change_name3(spe_exosome_CHTN_CH,change_name2)
-spe_exosome_CHTN_BC<-change_name3(spe_exosome_CHTN_BC,change_name2)
-
-spe_exosome_RUSH<-merge(RUSH_sample[,c("V1","V2","batch","Race_2")],spe_exosome_sig,by.x="V1",by.y="row.names")
-spe_exosome_RUSH_CH<-spe_exosome_RUSH[spe_exosome_RUSH$Race_2 %in% c("normal","cancer"),]
-spe_exosome_RUSH_BC<-spe_exosome_RUSH[spe_exosome_RUSH$Race_2 %in% c("benign","cancer"),]
-
-spe_exosome_RUSH<-change_name3(spe_exosome_RUSH,change_name2)
-spe_exosome_RUSH_CH<-change_name3(spe_exosome_RUSH_CH,change_name2)
-spe_exosome_RUSH_BC<-change_name3(spe_exosome_RUSH_BC,change_name2)
-
-
-

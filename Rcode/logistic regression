@@ -1,0 +1,204 @@
+##############logistic regression######
+
+#another source of data
+set.seed(123)
+train_indices <- sample(1:nrow(RUSH_rf), 0.7 * nrow(RUSH_rf))
+train_set<-RUSH_rf[train_indices,]
+test_set<-RUSH_rf[-train_indices,]
+
+train_set=pan_train_new
+test_set=exosome_test_new
+
+log_data<-train_set[,-c(1)]
+log_data2<-test_set[,-c(1)]
+
+train_set$group<-factor(train_set$group)
+logistic_model<-glm(train_set$group~ ., data=log_data,family="binomial")
+summary(logistic_model)
+coefficients<-data.frame(coef=coef(logistic_model))
+predicted_probs_train<-predict(logistic_model,type="response")
+roc_obj_train<-roc(train_set$group,predicted_probs_train)
+auc(roc_obj_train)
+ci(roc_obj_train)
+coords(roc_obj_train,"best",ret="threshold", best.method="youden")
+
+#########for 12 groups of TCGA########
+
+#for TCGA rest tumor samples logistic regression
+#tumor sample:TCGA_train_set2
+TCGA_train_set2_new<-data.frame(group=TCGA_train_set2$group,TCGA_train_set2[,colnames(TCGA_train_set2) %in% train_list2$piRNA_ID])
+
+#normal sample:
+extract_TCGA<-pan_test_new[rownames(pan_test_new) %in% TCGA_sample$V1,]
+extract_normal<-extract_TCGA[extract_TCGA$group=="normal",]
+
+write.csv(TCGA_train_set2,"TCGA_train_set2.csv")
+write.csv(extract_normal,"extract_normal.csv")
+
+set.seed(123)
+tumor_subgroups<-split(TCGA_train_set2_new,sample(1:12,nrow(TCGA_train_set2_new),replace=T))
+
+new_datasets <- lapply(tumor_subgroups, function(subgroup) {
+  rbind(subgroup, extract_normal)
+})
+
+auc_results <- sapply(new_datasets, function(dataset) {
+  model <- glm(train_set$group~ ., data=log_data,family="binomial")
+  validation_predictions <- predict(model, newdata=dataset,type = "response")
+  validation_roc_response <- roc(dataset$group,validation_predictions)
+  auc(validation_roc_response)
+})
+average_auc <- mean(auc_results)
+
+
+validation_roc_response1 <- predict(logistic_model, newdata=new_datasets[[1]], type = "response")
+roc_curve1 <- roc(new_datasets[[1]]$group, validation_roc_response1)
+plot(roc_curve1, main="ROC Curve for Dataset 1", col="#377eb8",
+     legacy.axes=TRUE, percent=TRUE,
+     xlab="1 - Specificity (False Positive Rate)", 
+     ylab="Sensitivity (True Positive Rate)",
+     print.auc=TRUE, auc.polygon=F, max.auc.polygon=FALSE,
+     font.main=2, font.lab=2, colorize=FALSE)
+
+# Loop over the remaining datasets and create a plot for each one
+for (i in 2:length(new_datasets)) {
+  dataset <- new_datasets[[i]]
+  predictions <- predict(logistic_model, newdata=dataset, type = "response")
+  roc_curve <- roc(dataset$group, predictions)
+  
+  # Create a new plot for each ROC curve
+  plot(roc_curve, main=paste("ROC Curve for Dataset", i), col=i+1,
+       legacy.axes=TRUE, percent=TRUE,
+       xlab="1 - Specificity (False Positive Rate)", 
+       ylab="Sensitivity (True Positive Rate)",
+       print.auc=TRUE, auc.polygon=F, max.auc.polygon=FALSE,
+       font.main=2, font.lab=2, colorize=FALSE)
+  
+  # Print the AUC on the console
+  cat("AUC for Dataset", i, ":", auc(roc_curve), "\n")
+}
+
+par(mfrow = c(3, 4), mar = c(4, 4, 2, 1))
+
+# Loop through all datasets
+for (i in 1:length(new_datasets)) {
+  dataset <- new_datasets[[i]]
+  predictions <- predict(logistic_model, newdata=dataset, type = "response")
+  roc_curve <- roc(dataset$group, predictions)
+  
+  # Plot each ROC curve in its own subplot
+  plot(roc_curve, main=paste("ROC Curve for Subset", i), col=i,
+       legacy.axes=TRUE, percent=TRUE,
+       xlab="1 - Specificity", ylab="Sensitivity",
+       print.auc=TRUE,print.auc.cex=1, auc.polygon=FALSE, max.auc.polygon=FALSE,
+       font.main=2, font.lab=2, colorize=FALSE)
+}
+current_palette <- palette()
+used_colors <- current_palette[2:(length(new_datasets) + 1)]
+print(used_colors)
+
+
+#legend("right", legend = names(new_datasets), col = 2:(length(new_datasets) + 1), lwd = 2)
+
+cutoff <- sapply(new_datasets, function(dataset) {
+  model <- glm(train_set$group~ ., data=log_data,family="binomial")
+  validation_predictions <- predict(model, newdata=dataset,type = "response")
+  validation_roc_response <- roc(dataset$group,validation_predictions)
+  auc(validation_roc_response)
+  coords(validation_roc_response, "best", ret="threshold", best.method="youden")
+})
+
+average_cutoff<-mean(unlist(cutoff))
+
+roc_curves<-list()
+
+# Loop through the datasets and calculate ROC curves and AUC
+auc_results <- sapply(new_datasets, function(dataset, index) {
+  # Fit the model
+  model <-glm(train_set$group~ ., data=log_data,family="binomial")
+  # Make predictions on the validation set
+  validation_predictions <- predict(model, newdata = dataset, type = "response")
+  # Compute the ROC curve
+  roc_curve <- roc(dataset$group, validation_predictions)
+  # Store the ROC curve object for later plotting
+  roc_curves[[index]] <- roc_curve
+  # Return the AUC
+  auc(roc_curve)
+}, index = names(new_datasets))
+
+# Plot the ROC curves
+plot(roc_curves[[1]], main = "ROC Curves", col = "red") # Plot the first ROC curve
+# Add the other ROC curves
+sapply(2:length(roc_curves), function(i) {
+  lines(roc_curves[[i]], col = i)
+})
+
+
+#######check the confusion matrix######
+prediction_train<-predict(logistic_model,type="response")
+confusionMatrix(data=as.factor(ifelse(prediction_train>0.56,"tumor","normal")),train_set$group)
+
+# Compute the linear predictor
+#get risk score
+linear_predictor <- as.vector(predict(logistic_model, log_data2, type = "link"))
+
+# Adding the intercept is not necessary when using the `predict` function with type = "link" 
+# as it already includes the effect of the intercept.
+normalized_values <- (linear_predictor - min(linear_predictor)) / (max(linear_predictor) - min(linear_predictor))
+test_set$predictor<-linear_predictor
+test_set$risk_score <- normalized_values
+test_set$predicted_probs <- predict(logistic_model, log_data2, type = "response")
+prediction_test<-predict(logistic_model,log_data2,type="response")
+#confusionMatrix(data=as.factor(ifelse(prediction_test>0.6,"tumor","normal")),as.factor(test_set$group))
+
+#test_logit$prediction_results<-ifelse(GSE83527_rf$risk_score>0.5,"tumor","normal")
+# qqplot(TCGA_match_rf2$`piR-hsa-1243473`, GSE83527_rf$`piR-hsa-1243473`)
+# ks.test(TCGA_match_rf2$`piR-hsa-100956`, TCGA_match_rf2$`piR-hsa-1243473`)
+roc_obj <- roc(test_set$group, test_set$predicted_probs)
+roc_obj$auc
+roc_obj$call
+ci(roc_obj)
+
+coords(roc_obj, "best", ret="threshold", best.method="youden")
+best_threshold<-coords(roc_obj, "best", ret="threshold", best.method="youden")
+test_set$prediction_results<-ifelse(test_set$predicted_probs>best_threshold$threshold,"tumor","normal")
+confusionMatrix(data=as.factor(ifelse(prediction_test>0.77,"tumor","normal")),as.factor(test_set$group))
+
+#evaluate risk score
+log_data3<-test_set[,-c(1)]
+test_set$group<-as.factor(test_set$group)
+logistic_model2<-glm(test_set$group~ risk_score, data=log_data3,family="binomial")
+summary(logistic_model2)
+predict_score<-predict(logistic_model2,type="response")
+roc_obj_score<-roc(test_set$group,predict_score)
+auc(roc_obj_score)
+score_threshold<-coords(roc_obj_score,"best")
+coords(roc_obj_score,"best")
+
+
+#############boxplot for score###########
+compare_means(risk_score ~group, data=score,method = "t.test")
+
+p_values <- list()
+p_values[['normal_vs_tumor']] <- wilcox.test(
+  test_set$risk_score[test_set$group == 'normal'],
+  test_set$risk_score[test_set$group == 'tumor']
+)$p.value
+p_values$normal_vs_tumor<-sprintf("%.2e", p_values[['normal_vs_tumor']])
+
+ggplot(test_set,aes(x=group,y=risk_score,fill=group))+
+  geom_boxplot(notch=FALSE)+
+  scale_fill_manual(values = c("#F19F1C","#759B02")) +
+  theme_classic() +
+  theme(axis.title.x = element_text(face = "bold", size = 11),
+        axis.title.y = element_text(face = "bold", size = 11))+
+  #geom_hline(yintercept = 0.5, color = "gray", linetype = "dashed", size = 0.5) + 
+  geom_jitter(shape=1, position=position_jitter(0.01))+
+  labs(title="GSE62182 non-cancer vs cancer",face="bold",size=8)+
+  geom_signif(
+    annotations=c(paste("p =", format(p_values[['normal_vs_tumor']], nsmall = 5))),
+    y_position=c(max(test_set$risk_score) + 0.35), # Adjust this position as needed
+    xmin=c(1), xmax=c(2),
+    tip_length=0.01
+  )
+

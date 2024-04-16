@@ -1,0 +1,262 @@
+#load counts
+#tissue
+GSE83527<-read.csv("GSE83527_goldcluster.csv",header=T,row.names = 1)
+GSE175462<-read.csv("GSE175462_goldcluster.csv",header=T,row.names = 1)
+TCGA<-read.csv("TCGA_goldcluster.csv",header=T,row.names = 1)
+TCGA<-TCGA[,colnames(TCGA) %in% TCGA_sample$V1]
+colnames(TCGA2)<-gsub("-","\\.",colnames(TCGA2))
+GSE110907<-read.csv("GSE110907.csv",header=T,row.names=1)
+GSE62182<-read.csv("GSE62182.csv",header=T,row.names=1)
+
+#plasma
+GSE148861_62<-read.csv("GSE148861_62_goldcluster.csv",header=T,row.names = 1)
+GSE204951<-read.csv("GSE204951.csv",header=T,row.names = 1)
+
+
+#pooling
+pooling<-read.csv("pooling.csv",header=T,row.names=1)
+
+#exosome
+RUSH<-read.csv("RUSH_goldpiRbase.csv",header=T,row.names=1)
+CHTN<-read.csv('CHTN_goldpiRbase.csv',header=T,row.names=1)
+  
+#clip colnames and readjust sample
+colnames(GSE83527)<-str_split_fixed(colnames(GSE83527),"_",3)[,1]
+GSE83527<-GSE83527[,colnames(GSE83527) %in% GSE83527_sample$V1]
+
+colnames(GSE175462)<-str_split_fixed(colnames(GSE175462),"_",3)[,1]
+GSE175462<-GSE175462[,colnames(GSE175462) %in% GSE175462_sample$V1]
+
+colnames(GSE62182)<-str_split_fixed(colnames(GSE62182),"_",3)[,1]
+GSE62182<-GSE62182[,colnames(GSE62182) %in% GSE62182_sample$V1]
+
+colnames(TCGA)<-str_split_fixed(colnames(TCGA),"_",3)[,1]
+TCGA<-TCGA[,colnames(TCGA) %in% TCGA_sample$V1]
+TCGA2<-TCGA2[,colnames(TCGA2) %in% TCGA_sample$V1]
+
+colnames(GSE148861_62)<-str_split_fixed(colnames(GSE148861_62),"_",3)[,1]
+GSE148861_62<-GSE148861_62[,colnames(GSE148861_62) %in% GSE148861_62_sample$V1]
+
+CHTN<-CHTN[,colnames(CHTN) %in% CHTN_sample$V1]
+#----------------------------------------------------------------
+colnames(GSE110907)<-str_split_fixed(colnames(GSE110907),"_",3)[,1]
+colnames(GSE204951)<-str_split_fixed(colnames(GSE204951),"_",3)[,1]
+
+
+#remove all zero piRNA
+GSE83527<-GSE83527[rowSums(GSE83527)>0,]#151209
+GSE175462<-GSE175462[rowSums(GSE175462)>0,]#242790
+GSE62182<-GSE62182[rowSums(GSE62182)>0,]#81473
+TCGA<-TCGA[rowSums(TCGA)>0,]#814298
+TCGA2<-TCGA2[rowSums(TCGA2)>0,]#809930
+GSE110907<-GSE110907[rowSums(GSE110907)>0,]#366217
+GSE148861_62<-GSE148861_62[rowSums(GSE148861_62)>0,]#284874
+GSE204951<-GSE204951[rowSums(GSE204951)>0,]#12958
+pooling<-pooling[rowSums(pooling)>0,]#31369
+RUSH<-RUSH[rowSums(RUSH)>0,]#298178
+CHTN<-CHTN[rowSums(CHTN)>0,]#292385
+
+
+
+piRNA_TPM<-function(data,piRbase_TPM){
+  data_piRNA<-data.frame(data,piRNA=rownames(data))
+  data_piRNA<-merge(data_piRNA,piRbase_TPM,by="piRNA")
+  return(data_piRNA)
+}
+
+GSE83527_piRNA<-piRNA_TPM(GSE83527,piRbase_TPM)
+GSE62182_piRNA<-piRNA_TPM(GSE62182,piRbase_TPM)
+GSE110907_piRNA<-piRNA_TPM(GSE110907,piRbase_TPM)
+GSE175462_piRNA<-piRNA_TPM(GSE175462,piRbase_TPM)
+TCGA_allpiRNA<-piRNA_TPM(TCGA,piRbase_TPM)
+TCGA_allpiRNA2<-piRNA_TPM(TCGA2,piRbase_TPM)
+GSE148861_62_piRNA<-piRNA_TPM(GSE148861_62,piRbase_TPM)
+GSE204951_piRNA<-piRNA_TPM(GSE204951,piRbase_TPM)
+pooling_piRNA<-piRNA_TPM(pooling,piRbase_TPM)
+RUSH_piRNA<-piRNA_TPM(RUSH,piRbase_TPM)
+CHTN_piRNA<-piRNA_TPM(CHTN,piRbase_TPM)
+
+
+
+#TPM
+#generate TPM data frame
+
+GSE83527_TPM<-data.frame(matrix(ncol=ncol(GSE83527),nrow=nrow(GSE83527)))
+colnames(GSE83527_TPM)<-colnames(GSE83527_piRNA)[2:53]
+rownames(GSE83527_TPM)<-GSE83527_piRNA$piRNA
+
+GSE62182_TPM<-data.frame(matrix(ncol=ncol(GSE62182),nrow=nrow(GSE62182)))
+colnames(GSE62182_TPM)<-colnames(GSE62182_piRNA)[2:57]
+rownames(GSE62182_TPM)<-GSE62182_piRNA$piRNA
+
+GSE110907_TPM<-data.frame(matrix(ncol=ncol(GSE110907),nrow=nrow(GSE110907)))
+colnames(GSE110907_TPM)<-colnames(GSE110907_piRNA)[2:97]
+rownames(GSE110907_TPM)<-GSE110907_piRNA$piRNA
+
+GSE175462_TPM<-data.frame(matrix(ncol=ncol(GSE175462),nrow=nrow(GSE175462)))
+colnames(GSE175462_TPM)<-colnames(GSE175462_piRNA)[2:141]
+rownames(GSE175462_TPM)<-GSE175462_piRNA$piRNA
+
+TCGA_TPM<-data.frame(matrix(ncol=ncol(TCGA),nrow=nrow(TCGA)))
+colnames(TCGA_TPM)<-colnames(TCGA_allpiRNA)[2:1083]
+rownames(TCGA_TPM)<-TCGA_allpiRNA$piRNA
+
+TCGA_TPM2<-data.frame(matrix(ncol=ncol(TCGA2),nrow=nrow(TCGA2)))
+colnames(TCGA_TPM2)<-colnames(TCGA_allpiRNA2)[2:1083]
+rownames(TCGA_TPM2)<-TCGA_allpiRNA2$piRNA
+
+GSE148861_62_TPM<-data.frame(matrix(ncol = ncol(GSE148861_62),nrow = nrow(GSE148861_62)))
+colnames(GSE148861_62_TPM)<-colnames(GSE148861_62_piRNA)[2:77]
+rownames(GSE148861_62_TPM)<-GSE148861_62_piRNA$piRNA
+
+GSE204951_TPM<-data.frame(matrix(ncol=ncol(GSE204951),nrow = nrow(GSE204951)))
+colnames(GSE204951_TPM)<-colnames(GSE204951_piRNA)[2:93]
+rownames(GSE204951_TPM)<-GSE204951_piRNA$piRNA
+
+pooling_TPM<-data.frame(matrix(ncol=ncol(pooling),nrow=nrow(pooling)))
+colnames(pooling_TPM)<-colnames(pooling_piRNA)[2:25]
+rownames(pooling_TPM)<-pooling_piRNA$piRNA
+
+RUSH_TPM<-data.frame(matrix(ncol=ncol(RUSH),nrow=nrow(RUSH)))
+colnames(RUSH_TPM)<-colnames(RUSH_piRNA)[2:234]
+rownames(RUSH_TPM)<-RUSH_piRNA$piRNA
+
+CHTN_TPM<-data.frame(matrix(ncol=ncol(CHTN),nrow=nrow(CHTN)))
+colnames(CHTN_TPM)<-colnames(CHTN_piRNA)[2:193]
+rownames(CHTN_TPM)<-CHTN_piRNA$piRNA
+
+#-----------------------------------------------------------------------------------------------------------
+calculate_TPM <- function(TPM, data) {
+  for (colname_i in colnames(data[, c(2:(ncol(data) - 1))])) {
+    TPM[, colname_i] <- (data[, colname_i] / data$length / (sum(data[, colname_i] / data$length) / 1000000))
+  }
+  return(TPM)
+}
+
+GSE83527_TPM <- calculate_TPM(GSE83527_TPM, GSE83527_piRNA)
+colSums(GSE83527_TPM)
+GSE83527_log<-log(GSE83527_TPM+1)
+
+GSE62182_TPM<-calculate_TPM(GSE62182_TPM,GSE62182_piRNA)
+colSums(GSE62182_TPM)
+GSE62182_log<-log(GSE62182_TPM+1)
+
+GSE175462_TPM <- calculate_TPM(GSE175462_TPM, GSE175462_piRNA)
+colSums(GSE175462_TPM)
+GSE175462_log<-log(GSE175462_TPM+1)
+
+GSE110907_TPM <- calculate_TPM(GSE110907_TPM, GSE110907_piRNA)
+colSums(GSE110907_TPM)
+GSE110907_log<-log(GSE110907_TPM+1)
+
+GSE148861_62_TPM <- calculate_TPM(GSE148861_62_TPM, GSE148861_62_piRNA)
+colSums(GSE148861_62_TPM)
+GSE148861_62_log<-log(GSE148861_62_TPM+1)
+
+GSE204951_TPM<-calculate_TPM(GSE204951_TPM,GSE204951_piRNA)
+colSums(GSE204951_TPM)
+GSE204951_log<-log(GSE204951_TPM+1)
+
+TCGA_TPM<-calculate_TPM(TCGA_TPM, TCGA_allpiRNA)
+colSums(TCGA_TPM)
+TCGA_log<-log(TCGA_TPM+1)
+TCGA_match_TPM<-TCGA_TPM[,colnames(TCGA_TPM) %in% TCGA_match_sample$V1]
+
+TCGA_TPM2<-calculate_TPM(TCGA_TPM2, TCGA_allpiRNA2)
+colSums(TCGA_TPM2)
+TCGA_log2<-log(TCGA_TPM2+1)
+TCGA_match_TPM2<-TCGA_TPM2[,colnames(TCGA_TPM2) %in% TCGA_match_sample$V1]
+
+pooling_TPM<-calculate_TPM(pooling_TPM, pooling_piRNA)
+colSums(pooling_TPM)
+pooling_log<-log(pooling_TPM+1)
+
+RUSH_TPM <- calculate_TPM(RUSH_TPM, RUSH_piRNA)
+colSums(RUSH_TPM)
+RUSH_log<-log(RUSH_TPM+1)
+
+CHTN_TPM <- calculate_TPM(CHTN_TPM, CHTN_piRNA)
+colSums(CHTN_TPM)
+CHTN_log<-log(CHTN_TPM+1)
+
+
+#remove low counts
+delete_lowcounts<-function(data){
+  to_delete<-rowSums(data==0)/ncol(data)>=0.5
+  data_rm<-data[!to_delete,]
+  return(data_rm)
+}
+
+GSE83527_rm<-delete_lowcounts(GSE83527)#9722
+GSE62182_rm<-delete_lowcounts(GSE62182)#8262
+GSE175462_rm<-delete_lowcounts(GSE175462)#9419
+TCGA_rm<-delete_lowcounts(TCGA)#11646
+TCGA_match<-TCGA_rm[,colnames(TCGA_rm) %in% TCGA_match_sample$V1]
+
+
+GSE110907_rm<-delete_lowcounts(GSE110907)#10902
+GSE148861_62_rm<-delete_lowcounts(GSE148861_62)#13200
+GSE204951_rm<-delete_lowcounts(GSE204951)#5241
+pooling_rm<-delete_lowcounts(pooling)#7982
+RUSH_rm<-delete_lowcounts(RUSH)#7392
+CHTN_rm<-delete_lowcounts(CHTN)#8224
+RUSH_CH<-RUSH_rm[,colnames(RUSH_rm) %in% RUSH_CH_sample$V1]
+CHTN_CH<-CHTN_rm[,colnames(CHTN_rm) %in% CHTN_CH_sample$V1]
+RUSH_BC<-RUSH_rm[,colnames(RUSH_rm) %in% RUSH_BC_sample$V1]
+CHTN_BC<-CHTN_rm[,colnames(CHTN_rm) %in% CHTN_BH_sample$V1]
+
+
+TCGA_log_rm<-delete_lowcounts(TCGA_log)
+GSE83527_log_rm<-delete_lowcounts(GSE83527_log)
+GSE62182_log_rm<-delete_lowcounts(GSE62182_log)
+GSE110907_log_rm<-delete_lowcounts(GSE110907_log)
+GSE175462_log_rm<-delete_lowcounts(GSE175462_log)
+GSE148861_62_log_rm<-delete_lowcounts(GSE148861_62_log)
+GSE204951_log_rm<-delete_lowcounts(GSE204951_log)
+pooling_log_rm<-delete_lowcounts(pooling_log)
+RUSH_log_rm<-delete_lowcounts(RUSH_log)
+CHTN_log_rm<-delete_lowcounts(CHTN_log)
+
+TCGA_TPM_rm<-delete_lowcounts(TCGA_TPM)
+TCGA_match_TPM_rm<-delete_lowcounts(TCGA_match_TPM)
+GSE83527_TPM_rm<-delete_lowcounts(GSE83527_TPM)
+GSE62182_TPM_rm<-delete_lowcounts(GSE62182_TPM)
+GSE110907_TPM_rm<-delete_lowcounts(GSE110907_TPM)
+GSE175462_TPM_rm<-delete_lowcounts(GSE175462_TPM)
+GSE148861_62_TPM_rm<-delete_lowcounts(GSE148861_62_TPM)
+GSE204951_TPM_rm<-delete_lowcounts(GSE204951_TPM)
+pooling_TPM_rm<-delete_lowcounts(pooling_TPM)
+RUSH_TPM_rm<-delete_lowcounts(RUSH_TPM)
+CHTN_TPM_rm<-delete_lowcounts(CHTN_TPM)
+CHTN_TPM_CH_rm<-CHTN_TPM_rm[,colnames(CHTN_TPM_rm) %in% CHTN_CH_sample$V1]
+
+
+
+
+
+
+#identify overpiRNA
+overpiRNA<-intersect(intersect(intersect(intersect(intersect(intersect(intersect(intersect(intersect(rownames(GSE83527_rm),rownames(GSE175462_rm)),
+                                                                                           rownames(GSE110907_rm)),rownames(GSE62182_rm)),
+                                                                       rownames(TCGA_rm)),rownames(GSE148861_62_rm)),rownames(GSE204951_rm)),rownames(pooling_rm)),rownames(RUSH_rm)),rownames(CHTN_rm))
+
+
+#deseq2
+DEpiRNA_GSE83527<-perform_deseq_analysis(GSE83527_rm,GSE83527_sample)
+DEpiRNA_GSE175462<-perform_deseq_analysis(GSE175462_rm,GSE175462_sample)
+DEpiRNA_GSE110907<-perform_deseq_analysis(GSE110907_rm,GSE110907_sample)
+#DEpiRNA_TCGA_match<-perform_deseq_analysis(TCGA_match,TCGA_match_sample)
+DEpiRNA_TCGA_match<-perform_deseq_analysis(TCGA_match,TCGA_match_sample)
+
+DEpiRNA_GSE62182<-perform_deseq_analysis(GSE62182_rm,GSE62182_sample)
+
+DEpiRNA_GSE148861_62<-perform_deseq_analysis(GSE148861_62_rm,GSE148861_62_sample)
+DEpiRNA_GSE204951<-perform_deseq_analysis(GSE204951_rm,GSE204951_sample)
+
+DEpiRNA_RUSH_CH<-perform_deseq_analysis(RUSH_CH,RUSH_CH_sample)
+DEpiRNA_CHTN_CH<-perform_deseq_analysis(CHTN_CH,CHTN_CH_sample)
+#DEpiRNA_RUSH_BC<-perform_deseq_analysis(RUSH_BC,RUSH_BC_sample)
+DEpiRNA_CHTN_BC<-perform_deseq_analysis(CHTN_BC,CHTN_BH_sample)
+DEpiRNA_CHTN<-perform_deseq_analysis(CHTN_rm,CHTN_sample)
+#DEpiRNA_RUSH<-perform_deseq_analysis(RUSH_rm,RUSH_sample)
+
